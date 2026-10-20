@@ -16,9 +16,7 @@ A [Joplin](https://joplinapp.org) plugin that opens Markdown tables in an **edit
 - [Interface language](#interface-language)
 - [Known limitations](#known-limitations)
 - [Privacy](#privacy)
-- [Development](#development)
-- [Reporting issues](#reporting-issues)
-- [License](#license)
+
 
 ## Features
 
@@ -170,19 +168,5 @@ npm run dist
 | `src/manifest.json` | Plugin metadata for Joplin |
 | `plugin.config.json` | Build configuration |
 
-### Publishing a new version
-1. Increase `version` in `src/manifest.json`.
-2. Run `npm run dist`.
-3. Commit and push.
-4. Create a new Release on GitHub and attach the new `.jpl`.
 
-## Reporting issues
 
-Open an [issue](../../issues) and include:
-- your system (Windows, Android, iOS...) and Joplin version;
-- whether you use desktop or mobile;
-- the steps to reproduce the problem and, if possible, the table that causes it.
-
-## License
-
-Released under the MIT License. See the [LICENSE](LICENSE) file.
