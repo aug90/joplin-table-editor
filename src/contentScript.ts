@@ -15,7 +15,10 @@ export default (_context: { contentScriptId: string }) => {
 				while (end < doc.lines && isRow(end + 1)) end++;
 
 				const from = doc.line(start).from;
-				const to = doc.line(end).to;
+				let to = doc.line(end).to;
+				if (end + 2 <= doc.lines && doc.line(end + 1).text.trim() === '' && doc.line(end + 2).text.startsWith('[//]: # (tf:')) {
+					to = doc.line(end + 2).to;
+				}
 				return { from, to, text: doc.sliceString(from, to) };
 			});
 

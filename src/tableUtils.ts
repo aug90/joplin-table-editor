@@ -4,6 +4,7 @@ export interface TableData {
 	header: string[];
 	aligns: Align[];
 	rows: string[][];
+	formulas?: { [addr: string]: string };
 }
 
 function splitRow(line: string): string[] {
@@ -30,7 +31,27 @@ function splitRow(line: string): string[] {
 
 const sepRegex = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 
+export function addrToPos(addr: string): { r: number; c: number } | null {
+	const m = /^([A-Z]+)(\d+)$/.exec(addr);
+	if (!m) return null;
+	let c = 0;
+	for (let i = 0; i < m[1].length; i++) c = c * 26 + (m[1].charCodeAt(i) - 64);
+	return { r: parseInt(m[2], 10) - 2, c: c - 1 };
+}
+
 export function parseTable(text: string): TableData | null {
+	
+	let payload: any = null;
+	const fm = text.match(/\r?\n[ \t]*\r?\n\[\/\/\]: # \(tf:([^)\r\n]*)\)\s*$/);
+	if (fm) {
+		text = text.slice(0, fm.index);
+		try {
+			payload = JSON.parse(decodeURIComponent(fm[1]));
+		} catch (e) {
+			payload = null;
+		}
+	}
+	
 	const lines = text.split(/\r?\n/);
 	if (lines.length < 2 || !sepRegex.test(lines[1])) return null;
 
@@ -51,7 +72,16 @@ export function parseTable(text: string): TableData | null {
 		return Array.from({ length: n }, (_, i) => cells[i] || '');
 	});
 
-	return { header, aligns, rows };
+	const formulas: { [addr: string]: string } = {};
+	if (payload && payload.f) {
+		Object.keys(payload.f).forEach(addr => {
+			const pos = addrToPos(addr);
+			if (!pos) return;
+			const cur = pos.r === -1 ? header[pos.c] : (rows[pos.r] ? rows[pos.r][pos.c] : undefined);
+			if (cur !== undefined && cur === (payload.v || {})[addr]) formulas[addr] = payload.f[addr];
+		});
+	}
+	return { header, aligns, rows, formulas };
 }
 
 export function serializeTable(data: TableData): string {
@@ -90,5 +120,17 @@ export function serializeTable(data: TableData): string {
 		line(widths.map((w, i) => sepCell(w, data.aligns[i]))),
 		...all.slice(1).map(r => line(r.map((c, i) => pad(c, widths[i], data.aligns[i])))),
 	];
-	return out.join('\n');
+	const f = data.formulas || {};
+	const keys = Object.keys(f);
+	if (!keys.length) return out.join('\n');
+	const v: { [addr: string]: string } = {};
+	keys.forEach(a => {
+		const p = addrToPos(a);
+		if (!p) return;
+		v[a] = p.r === -1 ? data.header[p.c] : (data.rows[p.r] ? data.rows[p.r][p.c] : '');
+	});
+	const payload = encodeURIComponent(JSON.stringify({ f: f, v: v }))
+		.replace(/\(/g, '%28')
+		.replace(/\)/g, '%29');
+	return out.join('\n') + '\n\n[//]: # (tf:' + payload + ')';
 }
