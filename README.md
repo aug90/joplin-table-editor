@@ -16,6 +16,8 @@ A [Joplin](https://joplinapp.org) plugin that opens Markdown tables in an **edit
 - [Interface language](#interface-language)
 - [Known limitations](#known-limitations)
 - [Privacy](#privacy)
+- [Formulas](#formulas)
+- [Currency format](#currency-format)
 
 
 ## Features
@@ -35,6 +37,9 @@ A [Joplin](https://joplinapp.org) plugin that opens Markdown tables in an **edit
 - Column widths that fit the content
 - Colors that follow the Joplin theme, where supported
 - Works on **desktop** and **mobile**
+- **Formulas** that recalculate as you type (`=B2*C2`, `=SUM(D2:D5)`, ...), with a one-tap **Σ** button for totals
+- **Currency format** for a whole column (`1.234,50 €`), also applied to formula results
+- Column letters and row numbers shown in the grid for cell references
 
 ## Requirements
 
@@ -82,6 +87,9 @@ Example table:
 | **B / I / S / `</>`** | Bold, italic, strikethrough, code on the selected text |
 | **↵ br** | Inserts `<br>` to break the line inside the cell |
 | **🔗 Link** | Inserts a Markdown link |
+| **Σ** | Writes a `SUM` formula summing the numeric cells above (or to the left of) the selected cell |
+| **€** | Formats the selected cell's column as currency; tap again to remove it |
+| **Formule → valori** | Removes all formulas and keeps the calculated values |
 
 ### Formatting and links
 - Select some text in a cell and tap **B**, **I**, **S** or **`</>`**: the text is wrapped in the Markdown symbols. Tapping the button again removes the formatting.
@@ -99,7 +107,7 @@ Copy a range of cells in your spreadsheet, then paste it into a cell of the grid
 | **Shift + Enter** | Inserts `<br>` (line break inside the cell) |
 | **↑ / ↓** | Cell above / below (selects the cell text) |
 | **← / →** | Cell to the left / right, when the cursor is at the start / end of the text |
-| **Tab** | Next field |
+| **Tab** | Next cell (skips the row and column buttons) |
 | **Ctrl + V** | Paste; with cells copied from a spreadsheet it fills the grid |
 
 On **desktop** you can assign a shortcut to the *Modifica tabella* command from *Tools → Options → Keyboard Shortcuts*.
@@ -113,6 +121,7 @@ On **desktop** you can assign a shortcut to the *Modifica tabella* command from 
 - **Sorting:** if the values are numbers (including `12,5` or `30%`) the order is numeric; otherwise it is alphabetical, with "2" before "10". Empty cells always go last and the header stays in place. After editing a cell the table does not re-sort by itself.
 - **Apply:** changes are written to the note only when you press **Applica**; the dialog is modal and does not update the note in real time.
 - **Undo:** the editor's undo (Ctrl+Z) restores the previous table in a single step.
+- **Formulas:** results are stored in the cells and the formulas in a hidden Markdown comment below the table (see [Formulas](#formulas)). The table is still plain Markdown.
 
 ## Interface language
 
@@ -138,6 +147,8 @@ The plugin interface is currently in Italian. English equivalents:
 - With emoji or very wide characters, the alignment of the source text can be slightly off.
 - The grid does not scroll automatically while dragging: with very wide tables, move the view first.
 - On mobile, appearance and some features depend on the Joplin version and its plugin support.
+- While a table contains formulas, sorting, dragging and deleting rows or columns are disabled (use **Formule → valori** to remove the formulas first).
+- Currency formatting supports only the euro and the Italian number format.
 
 ## Privacy
 
@@ -168,5 +179,64 @@ npm run dist
 | `src/manifest.json` | Plugin metadata for Joplin |
 | `plugin.config.json` | Build configuration |
 
+## Formulas
 
+Cells can contain formulas that update automatically when the numbers they depend on change. Type `=` followed by the formula, as in a spreadsheet. The grid shows the column letters above the columns and the row numbers on the left; the header is row 1.
+
+| Example | Result |
+|---------|--------|
+| `=B2*C2` | Product of two cells |
+| `=(B2+C2)*D2` | Parentheses are supported |
+| `=SUM(D2:D5)` | Sum of a range |
+| `=ROUND(AVERAGE(B2:B9);1)` | Functions can be combined |
+
+The **Σ** button writes a `SUM` for you: with the cursor in an empty cell, it sums the numeric cells above it (or, if there are none, the ones to its left).
+
+### Operators and functions
+
+- Operators: `+` `-` `*` `/` `^` and parentheses.
+- Functions (English or Italian names, case-insensitive): `SUM`/`SOMMA`, `AVERAGE`/`MEDIA`, `MIN`, `MAX`, `COUNT`/`CONTA`, `ABS`, `ROUND`/`ARROTONDA`.
+- References: a single cell (`B2`) or a range (`B2:B9`, `B2:D2`, `B2:D9`). A formula can use the result of another formula.
+
+### Rules
+
+- In formulas, write decimals with a dot (`=B2*1.22`) and separate arguments with `;` (a comma also works). In cells you can write numbers the Italian way (`12,5`); results are shown with a comma.
+- A value like `30%` is read as `30`, not `0.3`.
+- Empty and text cells are ignored by functions such as `SUM` and `AVERAGE`; in a direct operation they count as 0.
+
+### Errors
+
+| Error | Cause |
+|-------|-------|
+| `#DIV/0!` | Division by zero, or average of a range with no numbers |
+| `#CIRC!` | Circular reference |
+| `#RIF!` | Invalid reference |
+| `#NOME?` | Unknown function name |
+| `#VALORE!` | A range used where a single number was expected |
+| `#ERRORE!` | Malformed formula |
+
+### How formulas are stored
+
+The note always contains the **calculated result**, so it reads correctly without the plugin. The formulas themselves are kept in a hidden Markdown comment on the line below the table, separated by a blank line:
+
+```markdown
+[//]: # (tf:...)
+```
+
+This is a standard Markdown link reference definition: it is not rendered, and it is not HTML. If you change a result by hand in the note, the plugin notices the mismatch the next time you open the table and discards that formula instead of overwriting your value. If the table is copied to another note, the results come along but the formulas do not.
+
+### Limitations
+
+- While a table contains formulas, sorting, dragging and deleting rows or columns are disabled (a message explains why), because references would end up pointing to the wrong cells. The **Formule → valori** button removes the formulas and keeps the results, which unlocks these operations.
+- **+ Riga** adds the new row at the bottom, below any totals row: edit the range of the formula to include it.
+- No conditional functions (`IF`), no text or date functions, no references to other tables.
+
+## Currency format
+
+The **€** button formats the whole column of the selected cell (header excluded) as currency, Italian style: `1.234,50 €`, always with two decimals, negative numbers as `-1.234,50 €`. The column is also aligned to the right. Tap the button again to go back to plain numbers.
+
+- A column counts as "currency" if it contains at least one amount ending with `€`; the format is stored in the cells themselves.
+- Numbers you type in a currency column (`12,5` or `12.5`) are formatted when you leave the cell, and formula results in that column are shown as currency.
+- Formulas, sorting and **Σ** understand these amounts, so `=SUM(B2:B5)` works on cells like `1.234,50 €`.
+- Only the euro is supported, and amounts must use the Italian format (comma for decimals, dot for thousands).
 
